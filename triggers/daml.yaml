@@ -1,0 +1,18 @@
+# for config file options, refer to
+# https://docs.daml.com/tools/assistant.html#project-config-file-daml-yaml
+
+sdk-version: 2.3.0
+name: failure-strategies-triggers
+source: daml
+parties:
+  - Alice
+  - Bob
+  - Party
+version: 0.0.1
+dependencies:
+  - daml-prim
+  - daml-stdlib
+  - daml-script
+  - daml-trigger
+data-dependencies:
+  - ../.daml/dist/failure-strategies-model-0.0.1.dar

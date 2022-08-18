@@ -1,0 +1,58 @@
+module Trigger where
+
+import DA.Action
+
+import qualified Daml.Trigger as T
+import Daml.Trigger.LowLevel
+import DA.Foldable (mapA_, forA_)
+import Main
+
+emitExerciseCmd : (Template t, Choice t c r) => ContractId t -> c -> T.TriggerA s T.CommandId
+emitExerciseCmd cid c = T.emitCommands [T.exerciseCmd cid c] [T.toAnyContractId cid]
+
+data TriggerState = TriggerState {
+    allowedFailures : Int
+  , currentFailures : Int
+  , failureMessages : [Text]
+} deriving (Show, Eq)
+
+
+failureTrigger : T.Trigger TriggerState
+failureTrigger = T.Trigger
+  { initialize = pure $ TriggerState 5 0 []
+  , updateState = updateStateFailures
+  , rule = failureRule
+  , registeredTemplates = T.AllInDar
+  , heartbeat = None
+  }
+
+updateStateFailures : Message -> T.TriggerUpdateA TriggerState ()
+updateStateFailures m = case m of
+  (MCompletion (Completion _ (Failed _ m))) -> do
+      ts <- get
+      put $ TriggerState ts.allowedFailures (ts.currentFailures + 1) (m :: ts.failureMessages)
+      return ()
+  _ -> pure ()
+
+failureRule : Party -> T.TriggerA TriggerState ()
+failureRule party = do
+  ts <- get
+  failureNotifications <- T.query @TriggerFailureNotification
+  if   ts.currentFailures < ts.allowedFailures
+  then do
+    assets <- T.query @AssertOrArchive
+    mapA_ (\(cid,_) -> emitExerciseCmd cid Go) assets
+  else do
+    -- Create a Trigger Failure notification
+    when (null failureNotifications) $ do
+      debug $ "Trigger has exceeded maximum failures!"
+      let notification = TriggerFailureNotification with failureMessages = ts.failureMessages, party = party
+      T.emitCommands [T.createCmd notification] []
+      return ()
+
+  -- Look for restart requests, if there are any, acknoledge them and start up the trigger again
+  restartRequests <- T.query @FailedTriggerStartRequest
+  forA_ restartRequests (\(cid,_) -> do
+      emitExerciseCmd cid Acknowledge
+      put $ TriggerState ts.allowedFailures 0 []
+    )
