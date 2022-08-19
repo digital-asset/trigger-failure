@@ -1,15 +1,12 @@
 module Main where
 
-import Daml.Script
-
-
 template TriggerFailureNotification
   with
     party : Party
     failureMessages : [Text]
   where
     signatory party
-    choice RestartTrigger : ContractId FailedTriggerStartRequest
+    choice StartTrigger : ContractId FailedTriggerStartRequest
       controller party
       do
         create FailedTriggerStartRequest with ..
@@ -28,75 +25,11 @@ template AssertOrArchive
   with
     party : Party
     fail : Bool
-    issuer : Party
   where
     signatory party
 
     choice Go : ()
       controller party
         do
-          assert fail
-          -- create Asset with issuer, owner = party, name = "Test"
+          assert $ not fail
           return ()
-
-template SayHello
-  with
-    party : Party
-    count : Int
-  where
-    signatory party
-
-    choice Increment : ContractId SayHello
-      controller party
-        do
-          create this with count = count + 1
-
-
-template Proposal
-  with
-    owner : Party
-    recipient : Party
-  where
-    signatory owner
-    choice Proposal_Accept : ContractId Asset
-      controller recipient
-        do
-          create Asset with issuer = recipient, owner = recipient, name = "mine"
-
-template Request
-  with
-    owner : Party
-    recipient : Party
-  where
-    signatory recipient
-    observer owner
-    choice Accept : ContractId Asset
-      controller owner
-        do
-          proposalCid <- create Proposal with ..
-          exercise proposalCid Proposal_Accept
-
-
-template Asset
-  with
-    issuer : Party
-    owner  : Party
-    name   : Text
-  where
-    ensure name /= ""
-    signatory issuer
-    observer owner
-    choice Give : ContractId Asset
-      with
-        newOwner : Party
-      controller owner
-      do create this with
-           owner = newOwner
-
-setup : Script ()
-setup = script do
-  alice <- allocatePartyWithHint "Alice" (PartyIdHint "Alice")
-  owner <- allocatePartyWithHint "Owner" (PartyIdHint "Owner")
-
-  return ()
-
