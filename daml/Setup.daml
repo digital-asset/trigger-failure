@@ -7,7 +7,7 @@ import Daml.Script
 
 -- | A test user for the create-daml-app network.
 data TestUser = TestUser with
-  alias : Text
+  alias  : Text
   public : Party
 
 -- | Create a public party, then create three test users.
