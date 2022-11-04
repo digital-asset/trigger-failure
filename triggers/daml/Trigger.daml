@@ -32,14 +32,17 @@ exampleRule party = withFailures party $ do
 initFailureState : Int -> FailureState
 initFailureState allowedFailures = FailureState allowedFailures 0 []
 
+addFailure : Text -> FailureState -> FailureState
+addFailure m fs = fs with
+    currentFailures = fs.currentFailures + 1
+    failureMessages = m :: fs.failureMessages
+
 -- Use as or in the triggers' 'updateState' function, watches for failed commands and
 -- update 'FailureState' accordingly.
 updateStateFailures : Message -> T.TriggerUpdateA FailureState ()
 updateStateFailures m = case m of
-  (MCompletion (Completion _ (Failed _ m))) -> do
-      ts <- get
-      put $ FailureState ts.allowedFailures (ts.currentFailures + 1) (m :: ts.failureMessages)
-  _ -> pure ()
+  (MCompletion (Completion _ (Failed _ msg))) -> modify $ addFailure msg
+  _                                           -> pure ()
 
 -- Wrapper function that handles stopping a trigger when 'allowedFailures' is exceeded, creating the
 -- notification, and starting the trigger back up when requested.
